@@ -29,20 +29,27 @@ interface BatchInfo {
   status: BatchStatus;
 }
 
+interface ProtocolVersion {
+  headerKey: string;
+  headerValue: string;
+}
+
 const HTTPMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 /**
  * Wrapper function to set up XHR.
- * @param {string}      method    HTTP method for the request
- * @param {string}      url       endpoint to make the request to
- * @param {Uint8Array}  data      Byte array representation of the request body
- * @param {function}    headerFn  Function to set the correct request headers
+ * @param {string}          method          HTTP method for the request
+ * @param {string}          url             endpoint to make the request to
+ * @param {Uint8Array}      data            Byte array representation of the request body
+ * @param {function}        headerFn        Function to set the correct request headers
+ * @param {ProtocolVersion} protocolVersion Optional protocol version header
  */
 async function http(
   method: string,
   url: string,
   data: Uint8Array | null,
-  headerFn: (request: XMLHttpRequest) => void
+  headerFn: ((request: XMLHttpRequest) => void) | null = null,
+  protocolVersion: ProtocolVersion | null = null
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!HTTPMethods.includes(method.toUpperCase())) {
@@ -53,6 +60,13 @@ async function http(
     request.open(method, url);
     if (headerFn) {
       headerFn(request);
+    }
+
+    if (protocolVersion) {
+      request.setRequestHeader(
+        protocolVersion.headerKey,
+        protocolVersion.headerValue
+      );
     }
     request.onload = (): void => {
       if (request.status >= 200 && request.status < 300) {
@@ -82,16 +96,24 @@ async function http(
 
 /**
  * Submits a batch list of transaction batches
- * @param {string}      url       The endpoint to submit the batch list to
- * @param {Uint8Array}  batchList The serialized batch list
+ * @param {string}          url             The endpoint to submit the batch list to
+ * @param {Uint8Array}      batchList       The serialized batch list
+ * @param {ProtocolVersion} protocolVersion The optional protocol version header
  */
 export async function submitBatchList(
   url: string,
-  batchList: Uint8Array
+  batchList: Uint8Array,
+  protocolVersion: ProtocolVersion
 ): Promise<BatchInfo[]> {
-  return http('POST', url, batchList, (request: XMLHttpRequest) => {
-    request.setRequestHeader('Content-Type', 'application/octet-stream');
-  })
+  return http(
+    'POST',
+    url,
+    batchList,
+    (request: XMLHttpRequest) => {
+      request.setRequestHeader('Content-Type', 'application/octet-stream');
+    },
+    protocolVersion
+  )
     .catch(err => {
       throw new Error(err);
     })
